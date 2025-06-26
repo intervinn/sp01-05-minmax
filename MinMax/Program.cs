@@ -16,34 +16,74 @@ namespace MinMax
             }
         }
 
-        public static async Task<Result> DoAsync(IEnumerable<int> ints)
+
+
+        public static Result DoSync(IEnumerable<int> ints)
         {
-            using var cts = new CancellationTokenSource();
-            var indexedInts = ints.AsParallel().Select((value, index) => (value, index));
             Result result = new();
-            await Parallel.ForEachAsync(
-                indexedInts,
-                new ParallelOptions
+            var i = 0;
+            foreach (var v in ints)
+            {
+                if (i % 2 == 0)
                 {
-                    CancellationToken = cts.Token
-                },
-                async (item, token) =>
-                {
-                    if (item.index % 2 == 0)
+                    if (v < result.Min)
                     {
-                        if (item.value < result.Min)
+                        lock (result)
                         {
-                            result.Min = item.value;
+                            result.Max = v;
                         }
                     }
-                    else
+                } else
+                {
+                    if (v > result.Max)
                     {
-                        if (item.value > result.Max)
+                        lock (result)
                         {
-                            result.Max = item.value;
+                            result.Min = v;
                         }
                     }
-                });
+                }
+                i++;
+            }
+            return result;
+        }
+
+        public static Result DoPLINQ(IEnumerable<int> ints)
+        {
+            var query = ints.AsParallel();
+            return new Result()
+            {
+                Max = query.Where((i, v) => i % 2 != 0).Max(),
+                Min = query.Where((i, v) => i % 2 == 0).Min()
+            };
+        }
+
+        public static Result DoParallel(IEnumerable<int> ints)
+        {
+            Result result = new();
+            Parallel.ForEach(ints, (v, state, i) =>
+            {
+                if (i % 2 == 0)
+                {
+                    if (v < result.Min)
+                    {
+                        lock (result)
+                        {
+                            result.Min = v;
+                        }
+                    }
+                }
+                else
+                {
+                    if (v > result.Max)
+                    {
+                        lock (result)
+                        {
+                            result.Max = v;
+                        }
+                    }
+                }
+            });
             return result;
         }
 
@@ -61,37 +101,43 @@ namespace MinMax
 
     public class MinMaxBenchmark
     {
-        private readonly int max = int.MaxValue;
-        private readonly int min = int.MinValue;
+        private readonly int _max = int.MaxValue;
+        private readonly int _min = int.MinValue;
 
         [Benchmark]
-        public async Task<MinMax.Result> MinMax100()
+        public MinMax.Result Sync1mil()
         {
-            return await MinMax.DoAsync(MinMax.CreateRandomArray(100, min, max));
+            return MinMax.DoSync(MinMax.CreateRandomArray(1_000_000, _min, _max));
         }
 
         [Benchmark]
-        public async Task<MinMax.Result> MinMax1000()
+        public MinMax.Result Sync2bil()
         {
-            return await MinMax.DoAsync(MinMax.CreateRandomArray(1000, min, max));
+            return MinMax.DoSync(MinMax.CreateRandomArray(2_000_000_000, _min, _max));
         }
 
         [Benchmark]
-        public async Task<MinMax.Result> MinMax10000()
+        public MinMax.Result PLinq1mil()
         {
-            return await MinMax.DoAsync(MinMax.CreateRandomArray(10000, min, max));
+            return MinMax.DoPLINQ(MinMax.CreateRandomArray(1_000_000, _min, _max));
         }
 
         [Benchmark]
-        public async Task<MinMax.Result> MinMax10000000()
+        public MinMax.Result Plinq2bil()
         {
-            return await MinMax.DoAsync(MinMax.CreateRandomArray(10000000, min, max));
+            return MinMax.DoPLINQ(MinMax.CreateRandomArray(2_000_000_000, _min, _max));
         }
 
         [Benchmark]
-        public async Task<MinMax.Result> MinMaxMaxValue()
+        public MinMax.Result Parallel1mil()
         {
-            return await MinMax.DoAsync(MinMax.CreateRandomArray(int.MaxValue, min, max));
+            return MinMax.DoParallel(MinMax.CreateRandomArray(1_000_000, _min, _max));
+        }
+
+        [Benchmark]
+        public MinMax.Result Parallel2bil()
+        {
+            return MinMax.DoParallel(MinMax.CreateRandomArray(2_000_000_000, _min, _max));
         }
     }
 
