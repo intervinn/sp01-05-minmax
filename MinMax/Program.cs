@@ -101,43 +101,37 @@ namespace MinMax
 
     public class MinMaxBenchmark
     {
-        private readonly int _max = int.MaxValue;
-        private readonly int _min = int.MinValue;
+        [Params(10000)]
+        public int Max;
+        [Params(-10000)]
+        public int Min;
+        [Params(100_000, 1_000_000)] // от миллиарда подвисает комп + долго считает
+        public int N;
 
-        [Benchmark]
-        public MinMax.Result Sync1mil()
+        public IEnumerable<int> Data;
+
+        [GlobalSetup]
+        public void Setup()
         {
-            return MinMax.DoSync(MinMax.CreateRandomArray(1_000_000, _min, _max));
+            Data = MinMax.CreateRandomArray(N, Min, Max);
         }
 
         [Benchmark]
-        public MinMax.Result Sync2bil()
+        public MinMax.Result Sync()
         {
-            return MinMax.DoSync(MinMax.CreateRandomArray(2_000_000_000, _min, _max));
+            return MinMax.DoSync(Data);
         }
 
         [Benchmark]
-        public MinMax.Result PLinq1mil()
+        public MinMax.Result PLINQ()
         {
-            return MinMax.DoPLINQ(MinMax.CreateRandomArray(1_000_000, _min, _max));
+            return MinMax.DoPLINQ(Data);
         }
 
         [Benchmark]
-        public MinMax.Result Plinq2bil()
+        public MinMax.Result Parallel()
         {
-            return MinMax.DoPLINQ(MinMax.CreateRandomArray(2_000_000_000, _min, _max));
-        }
-
-        [Benchmark]
-        public MinMax.Result Parallel1mil()
-        {
-            return MinMax.DoParallel(MinMax.CreateRandomArray(1_000_000, _min, _max));
-        }
-
-        [Benchmark]
-        public MinMax.Result Parallel2bil()
-        {
-            return MinMax.DoParallel(MinMax.CreateRandomArray(2_000_000_000, _min, _max));
+            return MinMax.DoParallel(Data);
         }
     }
 
